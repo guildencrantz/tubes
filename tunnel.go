@@ -8,7 +8,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/getlantern/systray"
-	//https://github.com/armon/go-socks5
 )
 
 type TunnelDisabledError struct{}
