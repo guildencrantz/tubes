@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
@@ -114,7 +115,7 @@ func (t *Tunnel) Close() {
 }
 
 func (t *Tunnel) systray() {
-	t.menu = systray.AddMenuItem(t.Name, "")
+	t.menu = systray.AddMenuItem(t.Name, strconv.Itoa(t.Port))
 	if !t.Disabled {
 		t.menu.Check()
 	}
