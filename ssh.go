@@ -20,6 +20,7 @@ type SSH struct {
 	Hostname    string
 	Port        *int
 	Tunnels     []*Tunnel
+	SOCKS5s     []*SOCKS5
 	AuthMethods []ssh.AuthMethod
 	menu        *systray.MenuItem
 }
@@ -100,6 +101,13 @@ func (s *SSH) Tunnel() error {
 		go t.Listen()
 	}
 
+	for _, p := range s.SOCKS5s {
+		p.SSH = s
+		p.Finalize()
+		log.WithField("SOCKS5", p).Debug("SOCKS5")
+		go p.Listen()
+	}
+
 	return nil
 }
 
@@ -127,6 +135,10 @@ func (s *SSH) systray() {
 	go s.handleClicks()
 	for _, t := range s.Tunnels {
 		t.systray()
+	}
+
+	for _, p := range s.SOCKS5s {
+		p.systray()
 	}
 }
 

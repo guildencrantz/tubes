@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"strconv"
 	"sync"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/getlantern/systray"
-	//https://github.com/armon/go-socks5
 )
 
 type TunnelDisabledError struct{}
@@ -115,7 +115,7 @@ func (t *Tunnel) Close() {
 }
 
 func (t *Tunnel) systray() {
-	t.menu = systray.AddMenuItem(t.Name, "")
+	t.menu = systray.AddMenuItem(t.Name, strconv.Itoa(t.Port))
 	if !t.Disabled {
 		t.menu.Check()
 	}
