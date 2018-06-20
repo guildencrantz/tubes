@@ -25,6 +25,7 @@ type SOCKS5 struct {
 	Port      int
 	Disabled  bool
 	SSH       *SSH
+	local     net.Listener
 	server    *socks5.Server
 	menu      *systray.MenuItem
 }
@@ -40,12 +41,24 @@ func (s *SOCKS5) Finalize() {
 
 }
 
-func (s *SOCKS5) Listen() error {
+func (s *SOCKS5) Listen() (err error) {
 	if s.Disabled {
 		return TunnelDisabledError{}
 	}
 
-	if s.server == nil {
+	if s.local == nil {
+		s.local, err = net.Listen("tcp", fmt.Sprintf("%s:%d", s.LocalBind, s.Port))
+		if err != nil {
+			return err
+		}
+	}
+
+	for {
+		c, err := s.local.Accept()
+		if err != nil {
+			return err
+		}
+
 		// Now I'm regretting how I'm handling the connections.
 		// TODO: Tighten up connection management (besides all else Tunnel should default to making a direct connection, and using an external entity should be an override).
 		if s.SSH != nil && s.SSH.Client == nil {
@@ -54,24 +67,27 @@ func (s *SOCKS5) Listen() error {
 			}
 		}
 
-		// TODO: Listen on the port, don't create the socks server until a connection is received. Then we check the SSH connection (starting if necessary) and start the socks server.
-		srv, err := socks5.New(
-			&socks5.Config{
-				Resolver: EmptyResolver{},
-				Dial: func(ctx context.Context, n, a string) (net.Conn, error) {
-					return s.SSH.Client.Dial(n, a)
+		if s.server == nil {
+			srv, err := socks5.New(
+				&socks5.Config{
+					Resolver: EmptyResolver{},
+					Dial: func(ctx context.Context, n, a string) (net.Conn, error) {
+						return s.SSH.Client.Dial(n, a)
+					},
 				},
-			},
-		)
-		if err != nil {
-			logrus.WithError(err).Panic("Unable to create SOCKS5 server")
+			)
+			if err != nil {
+				logrus.WithError(err).Panic("Unable to create SOCKS5 server")
+			}
+
+			s.server = srv
 		}
 
-		if err := srv.ListenAndServe("tcp", fmt.Sprintf("%s:%d", s.LocalBind, s.Port)); err != nil {
-			logrus.WithError(err).Panic("Unable to create socks listener")
-		}
-
-		s.server = srv
+		go func() {
+			if err := s.server.ServeConn(c); err != nil {
+				logrus.WithError(err).Error("Unable to serve connection")
+			}
+		}()
 	}
 
 	return nil
@@ -97,8 +113,30 @@ func (s *SOCKS5) handleClicks() {
 		} else {
 			log.Warn("Disabling tunnel")
 			s.Disabled = true
+			s.local.Close()
+			s.local = nil
 			s.server = nil
 			s.menu.Uncheck()
 		}
 	}
+}
+
+func (s *SOCKS5) Close() {
+	log := s.logger("Close")
+	log.Warn("Closing")
+	defer log.Info("Closed")
+	if s.local != nil {
+		s.local.Close()
+	}
+
+	if s.menu != nil {
+		s.menu.Hide()
+	}
+}
+
+func (s *SOCKS5) logger(method string) *logrus.Entry {
+	return logrus.WithField("type", "SOCKS5").
+		WithField("method", method).
+		WithField("LocalBind", s.LocalBind).
+		WithField("Port", s.Port)
 }

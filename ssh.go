@@ -119,6 +119,10 @@ func (s *SSH) Close() {
 		t.Close()
 	}
 
+	for _, p := range s.SOCKS5s {
+		p.Close()
+	}
+
 	if s.Client != nil {
 		s.Client.Close()
 	}
