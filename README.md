@@ -58,6 +58,43 @@ You can, optionally, force all the connections to be closed and all the tunnels 
 
 To quit `tubes` use the `Quit` menu item, or just kill the process (which isn't actually daemonized as of this writing).
 
+### As a service
+
+You can run `tubes` as `launchd` service by creating a `~/Library/LaunchAgents/tubes.plist`, and then enabling it. My file (you'll need to fix the paths for you):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>SSH_AUTH_SOCK</key>
+		<string>/Users/mhenkel/.gnupg/S.gpg-agent.ssh</string>
+	</dict>
+	<key>KeepAlive</key>
+	<dict>
+		<key>Crashed</key>
+		<true/>
+		<key>SuccessfulExit</key>
+		<false/>
+	</dict>
+	<key>Label</key>
+	<string>tubes</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/Users/mhenkel/workspace/go/bin/tubes</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/tmp/tubes.stderr</string>
+	<key>StandardOutPath</key>
+	<string>/tmp/tubes.stdout</string>
+</dict>
+</plist>
+```
+
 # Warnings
 
 This is a weekend project with a few hours total time in it, and as such less than that in testing. Basic testing looks good, but I know there are issues (there's minimal error handling, so you're pretty much guaranteed to get odd behavior and hangs under any edge case--including switching networks).
