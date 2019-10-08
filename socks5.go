@@ -3,13 +3,16 @@ package main
 import (
 	"fmt"
 	"net"
+	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/armon/go-socks5"
 	"github.com/getlantern/systray"
 
 	"golang.org/x/net/context"
+	"golang.org/x/net/proxy"
 )
 
 // EmptyResolver prevents DNS from resolving on the local machine, rather than over the SSH connection.
@@ -25,6 +28,8 @@ type SOCKS5 struct {
 	Port      int
 	Disabled  bool
 	SSH       *SSH
+	HTTP      string // Act as HTTP proxy, listinening on this address, routing traffic over the SOCKS5 connection. (if this string is just a port, 127.0.0.1 will be used as the address).
+	httProxy  *httProxy
 	local     net.Listener
 	server    *socks5.Server
 	menu      *systray.MenuItem
@@ -39,9 +44,23 @@ func (s *SOCKS5) Finalize() {
 		s.LocalBind = "127.0.0.1"
 	}
 
+	if s.HTTP == "" || strings.Contains(s.HTTP, ":") { // HTTP is not set, or appears to be a full address (laziest of checks)
+		return
+	}
+
+	if _, err := strconv.Atoi(s.HTTP); err != nil {
+		logrus.WithFields(logrus.Fields{
+			"method": "SOCKS5.Finalise",
+			"HTTP":   s.HTTP,
+		}).Panic("Unable to parse HTTP proxy address")
+	}
+
+	s.HTTP = "127.0.0.1:" + s.HTTP
 }
 
 func (s *SOCKS5) Listen() (err error) {
+	log := logrus.WithField("method", "SOCKS5.Listen")
+
 	if s.Disabled {
 		return TunnelDisabledError{}
 	}
@@ -51,6 +70,27 @@ func (s *SOCKS5) Listen() (err error) {
 		if err != nil {
 			return err
 		}
+	}
+
+	if s.HTTP != "" && s.httProxy == nil {
+		log.Info("Starting HTTP Proxy")
+		dialer, err := proxy.SOCKS5("tcp", s.local.Addr().String(), nil, proxy.Direct)
+		if err != nil {
+			log.WithError(err).Panic("Unable to create SOCKS5 dialer")
+		}
+
+		s.httProxy = &httProxy{
+			Server: &http.Server{
+				Addr: s.HTTP,
+			},
+			dialer: dialer,
+		}
+
+		go func() {
+			if err := s.httProxy.ListenAndServe(); err != nil {
+				log.WithError(err).Panic("httProxy serve error")
+			}
+		}()
 	}
 
 	for {
@@ -77,7 +117,7 @@ func (s *SOCKS5) Listen() (err error) {
 				},
 			)
 			if err != nil {
-				logrus.WithError(err).Panic("Unable to create SOCKS5 server")
+				log.WithError(err).Panic("Unable to create SOCKS5 server")
 			}
 
 			s.server = srv
@@ -85,7 +125,7 @@ func (s *SOCKS5) Listen() (err error) {
 
 		go func() {
 			if err := s.server.ServeConn(c); err != nil {
-				logrus.WithError(err).Error("Unable to serve connection")
+				log.WithError(err).Error("Unable to serve connection")
 			}
 		}()
 	}
