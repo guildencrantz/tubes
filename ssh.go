@@ -29,7 +29,7 @@ func (s *SSH) Finalize() {
 	if s.Name == "" {
 		var p string
 		if s.Port != nil {
-			fmt.Sprintf(":%d", *s.Port)
+			p = fmt.Sprintf(":%d", *s.Port)
 		}
 		s.Name = fmt.Sprintf("%s@%s%s", s.User, s.Hostname, p)
 	}
@@ -53,11 +53,11 @@ func (s *SSH) Connect() error {
 	if s.User != "" {
 		cfg.User = s.User
 	}
-	cfg.SetDefaults()
 
 	addr := fmt.Sprintf("%s:%d", s.Hostname, *s.Port)
 	log.Debug("Dialing")
-	client, err := ssh.Dial("tcp", addr, cfg)
+	client, err := ssh.Dial("tcp", addr, cfg) // FIXME: Why is `Timeout` not working when the connection comes in on the port directly? When the host is clicked it works, though?
+	// Also might just be worth implementing: https://stackoverflow.com/questions/43116757/golang-ssh-dial-timeout
 	if err != nil {
 		return err
 	}
@@ -159,7 +159,9 @@ func (s *SSH) handleClicks() {
 			s.Client = nil
 			s.menu.Uncheck()
 		} else {
-			s.Connect()
+			if err := s.Connect(); err != nil {
+				log.WithError(err).Error("Unable to connect")
+			}
 		}
 	}
 }

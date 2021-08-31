@@ -129,8 +129,6 @@ func (s *SOCKS5) Listen() (err error) {
 			}
 		}()
 	}
-
-	return nil
 }
 
 func (s *SOCKS5) systray() {
@@ -153,8 +151,10 @@ func (s *SOCKS5) handleClicks() {
 		} else {
 			log.Warn("Disabling tunnel")
 			s.Disabled = true
-			s.local.Close()
-			s.local = nil
+			if s.local != nil {
+				s.local.Close()
+				s.local = nil
+			}
 			s.server = nil
 			s.menu.Uncheck()
 		}
