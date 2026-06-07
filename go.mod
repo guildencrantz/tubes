@@ -1,6 +1,6 @@
 module github.com/guildencrantz/tubes
 
-go 1.24.1
+go 1.25.11
 
 require (
 	github.com/Sirupsen/logrus v1.0.5
